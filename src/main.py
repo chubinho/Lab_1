@@ -1,38 +1,52 @@
-import sys
-import os
-
-try:
-    # Для запуска: python src/main.py
-    from calculator import tokenize_fsm, shunting_yard, opn
-except ImportError:
-    # Для запуска тестов: python -m pytest
-    from .calculator import tokenize_fsm, shunting_yard, opn
-# главная функция для вычисления выражения
+from calculator import tokenize_fsm, remove_parentheses, opn
+from exceptions import (
+    InvalidNumberInputError,
+    ParenthesesError,
+    RPNExpressionError,
+    ZeroDivisionMathError,
+    TooManyOperandsError,
+    EmptyExpressionError,
+    InvalidTokenError
+)
 
 
 def main(expr):
-    # пробуем разбить на токены, расположить их в ОПН и
-    # и вычислить по ходу в ОПН
-
     try:
         tokens = tokenize_fsm(expr)
-        obn = shunting_yard(tokens)
-        res = opn(obn)
-        return res
-    # обрабатыаем ошибку неправильного символа
+        """ Разбиваем на токены, выводим список с ними"""
+        processed_tokens = remove_parentheses(tokens)
 
-    except ValueError as a:
-        error = str(a)
-        if 'Неподходящий символ' in error:
-            return error
-        # иначе выводим ошибку записи лишних операндов
-        else:
-            return ('Некорректная запись выражения : лишние операнды')
-    # ловим все оставшиеся ошибки
-    except Exception:
-        return ('Ошибка')
+        rpn_tokens = []
+        for token_type, value in processed_tokens:
+            if token_type == 'NUMBER':
+                if value.is_integer():
+                    rpn_tokens.append(str(int(value)))
+                else:
+                    rpn_tokens.append(str(value))
+            else:
+                rpn_tokens.append(value)
 
-# запускаем алгоритм ввода выражения для пользователя
+
+        result = opn(rpn_tokens)
+
+        return result
+
+    except InvalidNumberInputError as e:
+        return f"Ошибка ввода неправильного числа: {e}"
+    except ParenthesesError as e:
+        return f"Ошибка скобок: {e}"
+    except RPNExpressionError as e:
+        return f"Ошибка выражения: {e}"
+    except ZeroDivisionMathError as e:
+        return f"Ошибка деления на 0: {e}"
+    except TooManyOperandsError as e:
+        return f"Ошибка выражения перебора операндов: {e}"
+    except EmptyExpressionError as e:
+        return f"Ошибка выражения: {e}"
+    except InvalidTokenError as e:
+        return f"Ошибка ввода: {e}"
+    except Exception as e:
+        return f"Неизвестная ошибка: {e}"
 
 
 if __name__ == "__main__":

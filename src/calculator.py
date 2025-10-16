@@ -1,156 +1,284 @@
-def tokenize_fsm(expr):  # разбиение на токены
+from exceptions import (
+    InvalidNumberInputError,
+    ParenthesesError,
+    RPNExpressionError,
+    ZeroDivisionMathError,
+    TooManyOperandsError,
+    EmptyExpressionError,
+    InvalidTokenError
+)
+
+
+def tokenize_fsm(expr):
+    '''
+    Токенизация выражение в ОПН
+    '''
     tokens = []
-    state = 'START'  # состояние для начала токенизации, а также это состояние начинает работать при окончании слова
-    current_token = ''
+    td = 0
+    l = len(expr)
 
-    # проходимся по элементам нашего выражения и проверяем, к чему элемент относится(число,пробел,знак операции)
-    for char in expr:
+    while td < l:
+        '''проходимся по элементам нашего выражения и проверяем, к чему элемент относится(число,пробел,знак операции), пока
+        наша переменная не дойдет до конца выражения'''
+        char = expr[td]
         if char == ' ':
+            td += 1
+            continue  # Пробелы игнорируются
 
-            continue  # пробелы игнорируются
-        if state == 'START':
-            if char.isdigit():  # если элемент число - с него начинается токен
-                state = 'NUMBER'
-                current_token = char
-            elif char == '+' or char == '-':  # учитываем унарные "+" и "-" перед числом
-                state = 'NUMBER'
-                current_token = char
-            else:
-                raise ValueError('Неподходящий символ')
+        elif char.isdigit():
+            """Проверяем, если попалось число. Используем флаг для отображения того, что уже встретили число
+            а так же ведем счетчик точек в числе"""
 
-        elif state == 'NUMBER':  # собираем число
-            if char.isdigit():
-                current_token += char
-            elif char == '.':  # собираем десятичное число
-                state = 'POINT'  # для этого переходим в состояние POINT и собираем часть после "."
-                current_token += char
-            elif char in ['+', '-', '*', '/']:
-                # когда встречаем знак операции, то добавляем само число(токен),
-                # а потом сам знак операции(токен)
-                try:
-                    float(current_token)
+            tek_expr = ""
+            has_digit = False
+            dot_count = 0
 
-                    tokens.append(('NUMBER', float(current_token)))
-                    current_token = ''
-                    state = 'START'
-                    tokens.append(('OPERATOR', char))
-                except ValueError:
-                    raise ValueError('Неправильная запись выражения')
-            else:
-                raise ValueError('Неподходящий символ')
+            while td < l and (expr[td].isdigit() or expr[td] == '.'):
+                """Собираем число. Проверяем количетсво точек в текущем выражении"""
+                if expr[td] == '.':
+                    dot_count += 1
+                    if dot_count > 1:
+                        raise InvalidNumberInputError(
+                            f"Введено несколько точек в числе: '{tek_expr + expr[td]}'")
+                else:
+                    """Фиксируем, что в выражении уже есть число"""
+                    has_digit = True
 
-        elif state == 'POINT':  # собираем число после "." и прибавляем к текущему числу
-            if char.isdigit():
-                current_token += char
+                """Добавляем текущий элемент в выражение( собираем число ) """
+                tek_expr += expr[td]
+                td += 1
 
-            # когда встречаем знак операции, то добавляем само число(токен), а потом сам знак операции(токен)
-            elif char in ['+', '-', '*', '/']:
-                tokens.append(('NUMBER', float(current_token)))
-                current_token = ''
-                state = 'START'
+            if not has_digit or tek_expr.endswith('.'):
+                """Если же мы не встретили число или число заканчивается точкой, то выводим ошибку"""
+                raise InvalidNumberInputError(
+                    f"Некорректное число: '{tek_expr}'")
+            try:
+                tokens.append(('NUMBER', float(tek_expr)))
+
+            except ValueError:
+                raise InvalidNumberInputError(
+                    f"Некорректное число: '{tek_expr}'")
+            continue
+
+        elif char in '()*/+-%':
+            """Проходимся по знакам операций, флаг используем для отметки добавления знака операции"""
+            Flag = False
+            if td + 1 < l:
+                """Проверяем так же, существует ли символ после знака операции, тк можем выйти за длину строки"""
+                if char == '/' and expr[td+1] == '/':
+                    tokens.append(('OPERATOR', '//'))
+                    td += 2
+                    Flag = True
+                elif char == '*' and expr[td+1] == '*':
+                    tokens.append(('OPERATOR', "**"))
+                    td += 2
+                    Flag = True
+
+            if not Flag and char == '+' and (td == 0 or expr[td-1] in '(+-*/% '):
+                """Так же проверяем и унарный минус"""
+
+                if td + 1 < l and (expr[td+1].isdigit() or expr[td+1] == '.'):
+                    """Унарный плюс пропускаем"""
+                    td += 1
+                    continue
+
+            if not Flag and char == '-' and (td == 0 or expr[td-1] in '(+-*/% '):
+                """Работаем уже с унарным минусом"""
+                if td + 1 < l and (expr[td+1].isdigit() or expr[td+1] == '.'):
+                    """Сначала будем работать с числом после унарного минуса,
+                    а затем уже добавим и сам минус"""
+                    td += 1
+
+                    tek_expr = ""
+                    has_digit = False
+                    dot_count = 0
+
+                    while td < l and (expr[td].isdigit() or expr[td] == '.'):
+                        """Собираем число после унарного минуса"""
+                        if expr[td] == '.':
+                            dot_count += 1
+                            if dot_count > 1:
+                                raise InvalidNumberInputError(
+                                    f"Введено несколько точек в числе: '{tek_expr + expr[td]}'")
+                        else:
+                            has_digit = True
+                        tek_expr += expr[td]
+                        td += 1
+
+                    if not has_digit or tek_expr.endswith('.'):
+                        raise InvalidNumberInputError(
+                            f"Некорректное число: '{tek_expr}'")
+
+                    try:
+                        """Добавляем само число, а потои уже унарный минус"""
+                        tokens.append(('NUMBER', float(tek_expr)))
+                        tokens.append(('OPERATOR', '~'))
+                    except ValueError:
+                        raise InvalidNumberInputError(
+                            f"Некорректное число: '{tek_expr}'")
+                    continue
+            if not Flag:
+                """Если ничего не добавили, то вносим любой другой опреатор, который не проверяли выше"""
                 tokens.append(('OPERATOR', char))
-
-    if state == 'NUMBER' or state == 'POINT':  # добавляем последнее число в токен
-        # проверяем, не является ли текущий токен просто знаком операции
-        try:
-            num = float(current_token)
-            tokens.append(('NUMBER', float(current_token)))
-        except ValueError:
-            raise ValueError('Неправильная запись выражения')
+                td += 1
+        else:
+            raise InvalidTokenError(f'Некорректный символ: "{expr[td]}"')
 
     return tokens
 
 
-# через класс Stack мы реализуем работу с токеном и перевод в строки в опн
+def is_valid_opn(tokens):
+    '''Проверяет, что токены образуют корректный ОПН фрагмент'''
+    operand_count = 0
+    for token_type, znach in tokens:
+        """Проходимся по каждому токену"""
+        if token_type == 'NUMBER':
+            operand_count += 1
+            """При встрече числа, добавляем его в количество общего числа знаков"""
+        elif token_type == 'OPERATOR':
+            if znach in {'+', '-', '*', '/', '**', '//', '%'}:
+                """При встрече знаков операций, проверяем, сколько было уже операндов"""
+                if operand_count < 2:
+                    return False
+                operand_count -= 1
+            elif znach == '~':
+                """Обрабатываем унарный минус"""
+                if operand_count < 1:
+                    return False
+    return operand_count == 1
 
 
-class Stack:
-    def __init__(self):  # создаём список(стэк), куда будут вноситься токены
-        self.items = []
+def remove_parentheses(tokens, start=0):
+    """
+    Удаляем скобки с помощью рекурсии
+    """
+    result = []
+    i = start
 
-    def push(self, item):  # заносим токен в конец стэка
-        self.items.append(item)
+    while i < len(tokens):
+        token_type, znach = tokens[i]
 
-    def pop(self):  # убираем элемент "сверху" стэка и выводим его
-        return self.items.pop()
+        if znach == '(':
+            """обрабатываем содержимое скобок, запускаем рекурсию,
+            чтобы проверить корректность выражения внутри"""
+            inner_result, new_i = remove_parentheses(tokens, i + 1)
 
-    def is_empty(self):  # проверяем, пуст ли стэк
-        return (self.items == [])
+            """Проверяем корректность выражения,
+             выводим ошибку, если некорректно """
+            if not is_valid_opn(inner_result):
+                raise RPNExpressionError(
+                    "Некорректное выражение внутри скобок")
 
-# функция перевода в ОПЗ
+            result.extend(inner_result)
+            i = new_i
 
+        elif znach == ')':
+            """Проверем закрвающую скобку"""
+            if start == 0:
+                raise ParenthesesError("Лишняя закрывающая скобка")
+            """Возвращаем результат и позицию после скобки"""
+            return result, i + 1
 
-def shunting_yard(tokens):
-    stack_operator = Stack()  # задаем тип данных Stack
-    output = []  # вывод
-    prioritet = {'+': 1, '-': 1, '*': 2, '/': 2}  # приоритеты знаков операции
+        else:
+            """Если текущий элемент не скобка, то добавляем его в рещультат и смещаемся вправо"""
+            result.append((token_type, znach))
+            i += 1
 
-    for token in tokens:  # проходимся по токенам
-        if token[0] == 'NUMBER':
-            # если токен это число, то сразу заносим в вывод
-            output.append(str(token[1]))
-        elif token[0] == 'OPERATOR':
-            current_operator = token[1]
-            while not stack_operator.is_empty() and \
-                    prioritet[stack_operator.items[-1]] >= prioritet[current_operator]:  # проверяем, не пуст ли стэк и
-                # сравниваем приоритеты знаков операции(сравниваем со всеми знаками в стэке)
-                # если приоритет текущего оператора <= крайнего,
-                last_operator = stack_operator.pop()
-                # то выталкиваем крайний оператор стэка
-                output.append(last_operator)
+    if start > 0:
+        raise ParenthesesError("Незакрытая скобка")
 
-            # заносим текущий оператор в стэк
-            stack_operator.push(current_operator)
-    while not stack_operator.is_empty():  # заносим в вывод жо того момента, пока стэк не станет пустым
-        output.append(stack_operator.pop())
-    return output  # возвращаем вывод(ОПН)
-
-
-# обрабатываем ОПН и считаем в правильном порядке
+    return result
 
 
 def opn(s):
-    operator = ['*', '/', '+', '-']
+    """
+    Вычисление ОПН выражения, проходимся по токенам
+    """
+    operator = ['*', '/', '+', '-', '//', '**', '~', '%']
     stack = []
-    for symb in s:  # проходимся по элементам ОПН
+
+    for symb in s:
         if symb in operator:
-            try:
+            """Обрабатываем именно оператор"""
+            if symb == '~':
+                """Обрабатываем унарный минус и число с ним"""
+                if len(stack) < 1:
+                    raise RPNExpressionError(
+                        "Недостаточно операндов для унарного минуса")
+                try:
+                    tek_znach = -float(stack[-1])
+                    stack.pop()
+                    stack.append(str(tek_znach))
+                except:
+                    raise RPNExpressionError(
+                        "Некорректное выражение с унарным минусом")
 
-                if symb == '+':  # если "+", то выполнем операцию и запоминаем ответ
-                    tek_znach = float(stack[-2]) + float(stack[-1])
-                    stack.pop()
-                    stack.pop()
-
-                elif symb == '-':  # если "-", то выполнем операцию и запоминаем ответ
-                    tek_znach = float(stack[-2]) - float(stack[-1])
-                    stack.pop()
-                    stack.pop()
-
-                elif symb == '*':  # если "*", то выполнем операцию и запоминаем ответ
-                    tek_znach = float(stack[-2]) * float(stack[-1])
-                    stack.pop()
-                    stack.pop()
+            else:
+                """Начинаем обработку уже бинарных операций"""
+                if len(stack) < 2:
+                    raise RPNExpressionError(f"Недостаточно операндов'{symb}'")
 
                 try:
-                    if symb == '/':  # если "/", то выполнем операцию и запоминаем ответ
-                        tek_znach = float(stack[-2]) / float(stack[-1])
-                        stack.pop()
-                        stack.pop()
-                except ZeroDivisionError:
-                    return ('На ноль делить нельзя!!!')
+                    b = float(stack[-1])
+                    a = float(stack[-2])
 
-                stack.append(str(tek_znach))  # вносим ответ в стэк
-            except IndexError:
-                return 'Недостаточно элементов в стэке'
+                    if symb == '+':
+                        tek_znach = a + b
+                    elif symb == '-':
+                        tek_znach = a - b
+                    elif symb == '*':
+                        tek_znach = a * b
+                    elif symb == '**':
+                        tek_znach = a ** b
+                    elif symb == '//':
+                        if b == 0:
+                            raise ZeroDivisionMathError(
+                                "На ноль делить нельзя!!!")
+                        tek_znach = a // b
+                    elif symb == '%':
+                        if b == 0:
+                            raise ZeroDivisionMathError(
+                                "На ноль делить нельзя!!!")
+                        tek_znach = a % b
+                    elif symb == '/':
+                        if b == 0:
+                            raise ZeroDivisionMathError(
+                                "На ноль делить нельзя!!!")
+                        tek_znach = a / b
+
+                    stack.pop()
+                    stack.pop()
+                    stack.append(str(tek_znach))
+
+                except (ZeroDivisionMathError, RPNExpressionError):
+                    """Выводим уже появившиеся ошибки"""
+                    raise
+                except ValueError:
+                    raise RPNExpressionError(
+                        "Некорректные операнды")
+                except Exception as e:
+                    raise RPNExpressionError(f"Ошибка в ОПН: {str(e)}")
 
         else:
+            """Обработка чисел"""
             try:
-                # проверяем число
                 float(symb)
                 stack.append(symb)
             except ValueError:
-                return "Неподходящий символ"
-    if len(stack) != 1:
-        return 'Выражение без операндов'
+                raise InvalidTokenError(f"Некорректный символ '{symb}'")
 
-    return stack[0]
+    if len(stack) == 0:
+        raise EmptyExpressionError("Пустое выражение")
+    elif len(stack) > 1:
+        raise TooManyOperandsError(
+            f"В выражении остались лишние операнды: {stack}")
+
+    try:
+        """Выводим результат(дополнительно проверяем тип данных)"""
+        result = float(stack[0])
+        if result.is_integer():
+            return str(int(result))
+        else:
+            return str(result)
+    except:
+        return stack[0]
