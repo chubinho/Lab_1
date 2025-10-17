@@ -1,0 +1,12 @@
+README
+pyproject.toml
+src/__init__.py
+src/calculator.py
+src/exceptions.py
+src/main.py
+src/lab_1.egg-info/PKG-INFO
+src/lab_1.egg-info/SOURCES.txt
+src/lab_1.egg-info/dependency_links.txt
+src/lab_1.egg-info/requires.txt
+src/lab_1.egg-info/top_level.txt
+tests/test_calculator.py
